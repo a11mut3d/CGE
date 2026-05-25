@@ -67,3 +67,5 @@ python cli.py example.com --cookies "session=abc123; user=test"
   "total_requests": 42
 }
 ```
+
+# mute ecosystem
