@@ -494,4 +494,5 @@ class Scanner:
             'endpoints': endpoints_serializable,
             'requests': self.all_requests,
             'total_requests': len(self.all_requests),
-            'total_hosts':
+            'total_hosts': len(self.discovered_hosts)
+        }
