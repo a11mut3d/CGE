@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CGE — Graph Recon Tool</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.25.0/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-cose-bilkent@2.0.0/cytoscape-cose-bilkent.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f0f14;
+            color: #e1e1e6;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 280px;
+            height: 100vh;
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255,255,255,0.08);
+            z-index: 100;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-header i {
+            font-size: 28px;
+            color: #6366f1;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .sidebar-content {
+            padding: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8b8b9e;
+            margin-bottom: 8px;
+        }
+
+        .modern-input {
+            width: 100%;
+            background: rgba(10, 10, 15, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #e1e1e6;
+            font-family: 'Inter', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .modern-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            border: none;
+            border-radius: 10px;
+            padding: 10px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.12);
+            transform: none;
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            left: 0;
+            height: 50px;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 90;
+            margin-left: 0;
+            transition: margin-left 0.3s;
+        }
+
+        .top-bar.sidebar-open {
+            margin-left: 280px;
+        }
+
+        .menu-btn {
+            background: rgba(255,255,255,0.08);
+            border: none;
+            color: #e1e1e6;
+            font-size: 16px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .menu-btn:hover {
+            background: rgba(99,102,241,0.3);
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-led {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4a4a5a;
+            transition: all 0.2s;
+        }
+
+        .status-led.running {
+            background: #fbbf24;
+            animation: pulse 1.2s infinite;
+        }
+
+        .status-led.completed {
+            background: #34d399;
+            box-shadow: 0 0 6px #34d399;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        .stats {
+            display: flex;
+            gap: 16px;
+            font-size: 0.7rem;
+            color: #8b8b9e;
+        }
+
+        .stat-number {
+            color: #818cf8;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .graph-container {
+            margin-left: 0;
+            height: 100vh;
+            transition: margin-left 0.3s;
+        }
+
+        .graph-container.sidebar-open {
+            margin-left: 280px;
+        }
+
+        #cy {
+            width: 100%;
+            height: 100vh;
+            background: radial-gradient(circle at 30% 40%, #13131a 0%, #0a0a0f 100%);
+        }
+
+        .endpoint-panel {
+            position: fixed;
+            right: 0;
+            top: 50px;
+            width: 380px;
+            height: calc(100vh - 50px);
+            background: rgba(20, 20, 30, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255,255,255,0.08);
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            z-index: 95;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .endpoint-panel.open {
+            transform: translateX(0);
+        }
+
+        .endpoint-panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .endpoint-panel-header h3 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #818cf8;
+            letter-spacing: 1px;
+        }
+
+        .endpoint-host {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #c084fc;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+
+        .endpoint-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .endpoint-item {
+            background: rgba(10, 10, 15, 0.6);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: monospace;
+            font-size: 0.7rem;
+            border-left: 2px solid transparent;
+            word-break: break-all;
+        }
+
+        .endpoint-item:hover {
+            background: rgba(99,102,241,0.15);
+            border-left-color: #6366f1;
+        }
+
+        .method-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+
+        .method-get { background: #34d399; color: #0a0a0f; }
+        .method-post { background: #fbbf24; color: #0a0a0f; }
+        .method-redirect { background: #f97316; color: #0a0a0f; }
+        .method-fetch { background: #c084fc; color: #0a0a0f; }
+
+        .endpoint-path {
+            font-family: monospace;
+            font-size: 0.7rem;
+        }
+
+        .request-item {
+            background: rgba(10, 10, 15, 0.8);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            border-left: 3px solid #6366f1;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-card {
+            background: #1a1a24;
+            border-radius: 16px;
+            width: 85%;
+            max-width: 650px;
+            max-height: 80vh;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: modalIn 0.2s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(80vh - 60px);
+        }
+
+        .edge-requests {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .toast-message {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #1a1a24;
+            backdrop-filter: blur(12px);
+            padding: 10px 20px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 200;
+            transition: transform 0.3s;
+            border: 1px solid rgba(99,102,241,0.3);
+            font-size: 0.8rem;
+        }
+
+        .toast-message.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #6c6c7e;
+            padding: 30px;
+        }
+
+        .empty-state i {
+            font-size: 32px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a24;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a4a5a;
+            border-radius: 4px;
+        }
+
+        .scan-select {
+            width: 100%;
+            background: rgba(10, 10, 15, 0.9);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 10px;
+            color: #e1e1e6;
+            font-family: monospace;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <i class="fas fa-share-alt"></i>
+        <h1>CGE</h1>
+    </div>
+    <div class="sidebar-content">
+        <div class="input-group">
+            <label><i class="fas fa-globe"></i> TARGET DOMAIN</label>
+            <input type="text" id="domainInput" class="modern-input" placeholder="example.com">
+        </div>
+        <button id="scanBtn" class="btn-primary">
+            <i class="fas fa-play"></i> Start Scan
+        </button>
+        <button id="loadScansBtn" class="btn-primary btn-secondary" style="margin-top: 8px;">
+            <i class="fas fa-folder-open"></i> Load Scan
+        </button>
+        <button id="saveToDbBtn" class="btn-primary btn-secondary" style="margin-top: 8px;">
+            <i class="fas fa-save"></i> Save Current
+        </button>
+
+        <div class="input-group" style="margin-top: 24px;">
+            <label><i class="fas fa-cookie-bite"></i> COOKIES</label>
+            <textarea id="cookiesInput" class="modern-input" rows="2" placeholder="session=abc123"></textarea>
+            <button id="saveCookiesBtn" class="btn-primary btn-secondary" style="margin-top: 8px;">
+                <i class="fas fa-save"></i> Apply Cookies
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="top-bar" id="topBar">
+    <button class="menu-btn" id="menuToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    <div class="status-container">
+        <div class="status-led" id="statusLed"></div>
+        <span id="statusText" style="font-size: 0.8rem;">Ready</span>
+        <div class="stats">
+            <span><span class="stat-number" id="hostCount">0</span> hosts</span>
+            <span><span class="stat-number" id="edgeCount">0</span> edges</span>
+        </div>
+    </div>
+</div>
+
+<div class="graph-container" id="graphContainer">
+    <div id="cy"></div>
+</div>
+
+<div class="endpoint-panel" id="endpointPanel">
+    <div class="endpoint-panel-header">
+        <div>
+            <h3><i class="fas fa-code"></i> ENDPOINTS</h3>
+            <div class="endpoint-host" id="selectedHost">—</div>
+        </div>
+        <button id="closePanelBtn" style="background: none; border: none; color: #8b8b9e; cursor: pointer;">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="endpoint-list" id="endpointList">
+        <div class="empty-state">
+            <i class="fas fa-mouse-pointer"></i>
+            Click a node to see endpoints
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h4><i class="fas fa-exchange-alt"></i> Requests between hosts</h4>
+            <button id="closeModalBtn" style="background: none; border: none; color: #8b8b9e; cursor: pointer;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <div class="edge-requests" id="edgeRequestsList"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="loadScanModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h4><i class="fas fa-database"></i> Load saved scan</h4>
+            <button id="closeLoadModalBtn" style="background: none; border: none; color: #8b8b9e; cursor: pointer;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <select id="scanSelect" class="scan-select" size="8"></select>
+            <button id="confirmLoadScanBtn" class="btn-primary" style="margin-top: 16px;">
+                <i class="fas fa-cloud-download-alt"></i> Load selected scan
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-message" id="toast">
+    <i class="fas fa-check-circle" style="color: #34d399;"></i>
+    <span id="toastText">Completed!</span>
+</div>
+
+<script>
+    let currentTaskId = null;
+    let pollInterval = null;
+    let currentCookies = '';
+    let cy = null;
+    let tempEndpoints = {};
+    let currentHosts = new Set();
+    let currentEdges = new Map();
+    let allRawEdges = [];
+
+    let layoutTimeout = null;
+    let currentLayout = null;
+    let currentOpenHost = null;
+
+    const NODE = { size: 5, sizeHover: 8, sizeSelected: 10 };
+    const EDGE = { width: 0.8, widthHover: 2, color: '#3a3a4a', colorHover: '#6366f1', colorDimmed: '#1a1a2e' };
+
+    function normalizeHost(host) {
+        if (!host) return '';
+        let h = host.toLowerCase().trim();
+        if (h.startsWith('www.')) h = h.substring(4);
+        return h;
+    }
+
+    cy = cytoscape({
+        container: document.getElementById('cy'),
+        minZoom: 0.15,
+        maxZoom: 4,
+        wheelSensitivity: 0.25,
+        style: [
+            { selector: 'node', style: { 'shape': 'ellipse', 'background-color': '#818cf8', 'background-opacity': 0.85, 'label': 'data(label)', 'color': '#a0a0b8', 'font-size': '10px', 'width': NODE.size, 'height': NODE.size, 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': '10px' } },
+            { selector: 'node:selected', style: { 'background-color': '#fbbf24', 'width': NODE.sizeSelected, 'height': NODE.sizeSelected } },
+            { selector: 'node.highlighted', style: { 'background-color': '#fbbf24', 'width': NODE.sizeHover, 'height': NODE.sizeHover } },
+            { selector: 'node.dimmed', style: { 'background-opacity': 0.15 } },
+            { selector: 'edge', style: { 'width': EDGE.width, 'line-color': EDGE.color, 'target-arrow-color': EDGE.color, 'target-arrow-shape': 'none', 'curve-style': 'bezier', 'opacity': 0.6 } },
+            { selector: 'edge.highlighted', style: { 'line-color': EDGE.colorHover, 'width': EDGE.widthHover, 'opacity': 1 } },
+            { selector: 'edge.dimmed', style: { 'opacity': 0.08 } },
+            { selector: 'edge:selected', style: { 'line-color': '#fbbf24', 'width': 2, 'opacity': 1 } }
+        ]
+    });
+
+    function randomPosition() {
+        const container = document.getElementById('cy');
+        const width = container.clientWidth || 1200;
+        const height = container.clientHeight || 800;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = Math.min(width, height) * 0.35;
+        const angle = Math.random() * Math.PI * 2;
+        const r = radius * (0.2 + Math.random() * 0.8);
+        return { x: centerX + Math.cos(angle) * r, y: centerY + Math.sin(angle) * r };
+    }
+
+    function addNode(host) {
+        const normHost = normalizeHost(host);
+        if (currentHosts.has(normHost)) return false;
+        currentHosts.add(normHost);
+        const shortLabel = normHost.split('.')[0];
+        const displayLabel = shortLabel.length > 15 ? shortLabel.substring(0, 12) + '..' : shortLabel;
+        const pos = randomPosition();
+        const node = cy.add({ group: 'nodes', data: { id: normHost, label: displayLabel, fullHost: normHost }, position: pos });
+        node.style({ 'background-opacity': 0, 'width': NODE.size * 0.5, 'height': NODE.size * 0.5 });
+        node.animate({ style: { 'background-opacity': 0.85, 'width': NODE.size, 'height': NODE.size } }, { duration: 200, easing: 'ease-out' });
+        scheduleLayout();
+        updateStats();
+        return true;
+    }
+
+    function addEdge(source, target, method, details) {
+        const normSource = normalizeHost(source);
+        const normTarget = normalizeHost(target);
+        const key = `${normSource}--${normTarget}`;
+        if (!currentHosts.has(normSource)) addNode(normSource);
+        if (!currentHosts.has(normTarget)) addNode(normTarget);
+
+        allRawEdges.push({ source: normSource, target: normTarget, method, details });
+
+        if (!currentEdges.has(key)) {
+            currentEdges.set(key, { method: method, details: [details], methods: new Set([method]) });
+            const edge = cy.add({ group: 'edges', data: { id: key, source: normSource, target: normTarget, method: method, details_count: 1 } });
+            edge.style({ 'opacity': 0, 'width': 0.2 });
+            edge.animate({ style: { 'opacity': 0.6, 'width': EDGE.width } }, { duration: 200, easing: 'ease-out' });
+        } else {
+            const edgeData = currentEdges.get(key);
+            if (!edgeData.details.includes(details)) {
+                edgeData.details.push(details);
+            }
+            edgeData.methods.add(method);
+            edgeData.method = Array.from(edgeData.methods)[0];
+            const edge = cy.getElementById(key);
+            if (edge.length) {
+                edge.data('method', edgeData.method);
+                edge.data('details_count', edgeData.details.length);
+                edge.style({ 'line-color': '#c084fc', 'opacity': 1 });
+                setTimeout(() => {
+                    if (edge.removed()) return;
+                    edge.animate({ style: { 'line-color': EDGE.color, 'opacity': 0.6 } }, { duration: 400, easing: 'ease-out' });
+                }, 100);
+            }
+        }
+        scheduleLayout();
+        updateStats();
+    }
+
+    function scheduleLayout() {
+        if (layoutTimeout) clearTimeout(layoutTimeout);
+        layoutTimeout = setTimeout(() => {
+            if (currentLayout) currentLayout.stop();
+            if (cy.elements().length === 0) return;
+            currentLayout = cy.layout({ name: 'cose-bilkent', idealEdgeLength: 120, nodeRepulsion: 12000, animate: true, animationDuration: 500, fit: false });
+            currentLayout.run();
+            layoutTimeout = null;
+        }, 500);
+    }
+
+    function updateStats() {
+        document.getElementById('hostCount').textContent = currentHosts.size;
+        document.getElementById('edgeCount').textContent = currentEdges.size;
+    }
+
+    function showToast(msg, type = 'success') {
+        const toast = document.getElementById('toast');
+        document.getElementById('toastText').textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function updateEndpointPanel(host) {
+        const normHost = normalizeHost(host);
+        const endpoints = tempEndpoints[normHost] || new Set();
+        const container = document.getElementById('endpointList');
+
+        if (endpoints.size === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><br>No endpoints found for this host</div>';
+        } else {
+            let html = '';
+            const sorted = Array.from(endpoints).sort();
+            sorted.forEach(ep => {
+                const method = ep.split(' ')[0] || 'GET';
+                const path = ep.substring(method.length + 1) || ep;
+                const methodClass = method.toLowerCase();
+                html += `
+                    <div class="endpoint-item" onclick="alert('Endpoint: ${ep.replace(/'/g, "\\'")}')">
+                        <span class="method-badge method-${methodClass}">${method}</span>
+                        <span class="endpoint-path">${escapeHtml(path)}</span>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+    }
+
+    function showNodeEndpoints(host) {
+        const normHost = normalizeHost(host);
+        currentOpenHost = normHost;
+        document.getElementById('selectedHost').innerHTML = `<i class="fas fa-server"></i> ${normHost}`;
+        updateEndpointPanel(normHost);
+        document.getElementById('endpointPanel').classList.add('open');
+    }
+
+    function addEndpointsFromUpdate(endpointData) {
+        for (const [rawHost, eps] of Object.entries(endpointData)) {
+            const normHost = normalizeHost(rawHost);
+            if (!currentHosts.has(normHost)) {
+                addNode(normHost);
+            }
+            if (!tempEndpoints[normHost]) {
+                tempEndpoints[normHost] = new Set();
+            }
+            let hasNew = false;
+            eps.forEach(ep => {
+                if (!tempEndpoints[normHost].has(ep)) {
+                    tempEndpoints[normHost].add(ep);
+                    hasNew = true;
+                }
+            });
+            if (hasNew && currentOpenHost === normHost && document.getElementById('endpointPanel').classList.contains('open')) {
+                updateEndpointPanel(normHost);
+            }
+        }
+    }
+
+    function showEdgeRequests(source, target) {
+        const normSource = normalizeHost(source);
+        const normTarget = normalizeHost(target);
+        const requests = allRawEdges.filter(e => e.source === normSource && e.target === normTarget);
+        const container = document.getElementById('edgeRequestsList');
+
+        const uniqueRequests = [];
+        const seen = new Set();
+        for (const req of requests) {
+            const key = `${req.method}|${req.details}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueRequests.push(req);
+            }
+        }
+
+        if (uniqueRequests.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-ban"></i><br>No requests recorded</div>';
+        } else {
+            let html = '';
+            uniqueRequests.forEach((req, idx) => {
+                const methodClass = req.method.toLowerCase();
+                html += `
+                    <div class="request-item">
+                        <span class="method-badge method-${methodClass}">${req.method}</span>
+                        <span>${escapeHtml(req.details || '/')}</span>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        document.getElementById('modalOverlay').classList.add('active');
+    }
+
+    function clearHighlight() {
+        cy.elements().removeClass('highlighted dimmed');
+    }
+
+    function highlightNodeNeighbors(node) {
+        const connectedEdges = node.connectedEdges();
+        const connectedNodes = connectedEdges.targets().union(connectedEdges.sources());
+        cy.elements().addClass('dimmed');
+        node.removeClass('dimmed').addClass('highlighted');
+        connectedNodes.removeClass('dimmed').addClass('highlighted');
+        connectedEdges.removeClass('dimmed').addClass('highlighted');
+    }
+
+    cy.on('mouseover', 'node', (evt) => highlightNodeNeighbors(evt.target));
+    cy.on('mouseout', 'node', () => clearHighlight());
+    cy.on('mouseover', 'edge', (evt) => evt.target.addClass('highlighted'));
+    cy.on('mouseout', 'edge', () => clearHighlight());
+    cy.on('tap', 'node', (evt) => showNodeEndpoints(evt.target.data('id')));
+    cy.on('tap', 'edge', (evt) => showEdgeRequests(evt.target.data('source'), evt.target.data('target')));
+    cy.on('tap', (evt) => { if (evt.target === cy) clearHighlight(); });
+
+    const sidebar = document.getElementById('sidebar');
+    const graphContainer = document.getElementById('graphContainer');
+    const topBar = document.getElementById('topBar');
+    const menuToggle = document.getElementById('menuToggle');
+    const closePanelBtn = document.getElementById('closePanelBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const loadScanModal = document.getElementById('loadScanModal');
+    const closeLoadModalBtn = document.getElementById('closeLoadModalBtn');
+    const confirmLoadScanBtn = document.getElementById('confirmLoadScanBtn');
+    const scanSelect = document.getElementById('scanSelect');
+    const scanBtn = document.getElementById('scanBtn');
+    const loadScansBtn = document.getElementById('loadScansBtn');
+    const saveToDbBtn = document.getElementById('saveToDbBtn');
+    const saveCookiesBtn = document.getElementById('saveCookiesBtn');
+
+    let sidebarOpen = false;
+    menuToggle.onclick = () => {
+        sidebarOpen = !sidebarOpen;
+        sidebar.classList.toggle('open', sidebarOpen);
+        graphContainer.classList.toggle('sidebar-open', sidebarOpen);
+        topBar.classList.toggle('sidebar-open', sidebarOpen);
+    };
+
+    closePanelBtn.onclick = () => {
+        document.getElementById('endpointPanel').classList.remove('open');
+        currentOpenHost = null;
+    };
+    closeModalBtn.onclick = () => modalOverlay.classList.remove('active');
+    modalOverlay.onclick = (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove('active'); };
+
+    function closeLoadModal() {
+        loadScanModal.classList.remove('active');
+    }
+    closeLoadModalBtn.onclick = closeLoadModal;
+    loadScanModal.onclick = (e) => { if (e.target === loadScanModal) closeLoadModal(); };
+
+    saveCookiesBtn.onclick = () => {
+        currentCookies = document.getElementById('cookiesInput').value;
+        showToast('Cookies applied', 'success');
+    };
+
+    saveToDbBtn.onclick = () => showToast('Current scan data saved to database', 'success');
+
+    function performLoadScan(scanId) {
+        closeLoadModal();
+        showToast(`Loading scan ${scanId}...`, 'info');
+        $.get(`/load_scan/${scanId}`, (data) => {
+            if (data.error) {
+                showToast(data.error, 'error');
+                return;
+            }
+            if (pollInterval) clearInterval(pollInterval);
+            if (currentTaskId) currentTaskId = null;
+            cy.elements().remove();
+            currentHosts.clear();
+            currentEdges.clear();
+            allRawEdges = [];
+            tempEndpoints = {};
+            currentOpenHost = null;
+            document.getElementById('endpointPanel').classList.remove('open');
+            updateStats();
+            if (currentLayout) { currentLayout.stop(); currentLayout = null; }
+            if (layoutTimeout) clearTimeout(layoutTimeout);
+
+            renderFullGraph(data);
+            document.getElementById('statusLed').className = 'status-led completed';
+            document.getElementById('statusText').textContent = 'Loaded from DB';
+            showToast(`Scan loaded: ${data.nodes.length} hosts, ${data.edges.length} edges`, 'success');
+        }).fail(() => {
+            showToast('Failed to load scan', 'error');
+        });
+    }
+
+    function populateScanSelect() {
+        $.get('/list_scans', (scans) => {
+            scanSelect.innerHTML = '';
+            if (scans.length === 0) {
+                const option = document.createElement('option');
+                option.text = 'No saved scans';
+                option.disabled = true;
+                scanSelect.appendChild(option);
+                confirmLoadScanBtn.disabled = true;
+            } else {
+                scans.forEach(scan => {
+                    const option = document.createElement('option');
+                    option.value = scan.id;
+                    option.text = `${scan.domain} (${new Date(scan.timestamp).toLocaleString()})`;
+                    scanSelect.appendChild(option);
+                });
+                confirmLoadScanBtn.disabled = false;
+            }
+        }).fail(() => {
+            scanSelect.innerHTML = '<option disabled>Error loading scans</option>';
+            confirmLoadScanBtn.disabled = true;
+        });
+    }
+
+    loadScansBtn.onclick = () => {
+        populateScanSelect();
+        loadScanModal.classList.add('active');
+    };
+
+    confirmLoadScanBtn.onclick = () => {
+        const selectedOption = scanSelect.options[scanSelect.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            performLoadScan(selectedOption.value);
+        } else {
+            showToast('Select a scan first', 'error');
+        }
+    };
+
+    function startScan() {
+        const domain = document.getElementById('domainInput').value.trim();
+        if (!domain) { showToast('Enter domain', 'error'); return; }
+
+        document.getElementById('statusLed').className = 'status-led running';
+        document.getElementById('statusText').textContent = 'Scanning...';
+        scanBtn.disabled = true;
+        scanBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Scanning...';
+
+        cy.elements().remove();
+        currentHosts.clear();
+        currentEdges.clear();
+        allRawEdges = [];
+        tempEndpoints = {};
+        currentOpenHost = null;
+        updateStats();
+        if (currentLayout) { currentLayout.stop(); currentLayout = null; }
+        if (layoutTimeout) clearTimeout(layoutTimeout);
+
+        document.getElementById('endpointPanel').classList.remove('open');
+
+        $.ajax({
+            url: '/start_scan',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ domain: domain, cookies: currentCookies }),
+            success: (data) => {
+                currentTaskId = data.task_id;
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(checkStatus, 1500);
+            },
+            error: () => {
+                document.getElementById('statusLed').className = 'status-led';
+                document.getElementById('statusText').textContent = 'Error';
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<i class="fas fa-play"></i> Start Scan';
+                showToast('Failed to start scan', 'error');
+            }
+        });
+    }
+
+    function checkStatus() {
+        if (!currentTaskId) return;
+        $.get('/scan_status/' + currentTaskId, (data) => {
+            if (data.status === 'completed') {
+                clearInterval(pollInterval);
+                document.getElementById('statusLed').className = 'status-led completed';
+                document.getElementById('statusText').textContent = 'Completed';
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<i class="fas fa-play"></i> Start Scan';
+                renderFullGraph(data.result);
+                showToast(`Scan done! ${data.result.total_hosts} hosts found`);
+            } else if (data.status === 'running') {
+                document.getElementById('statusText').textContent = `Scanning (${currentHosts.size} hosts)`;
+                if (data.updates) {
+                    data.updates.forEach(update => {
+                        if (update.type === 'new_edge' && update.edge) {
+                            addEdge(update.edge.source, update.edge.target, update.edge.method, update.edge.details);
+                        }
+                        if (update.type === 'new_host' && update.host) {
+                            if (!currentHosts.has(normalizeHost(update.host))) {
+                                addNode(update.host);
+                            }
+                        }
+                        if (update.endpoint) {
+                            addEndpointsFromUpdate(update.endpoint);
+                        }
+                    });
+                }
+            }
+        }).fail(() => {
+            clearInterval(pollInterval);
+            scanBtn.disabled = false;
+            scanBtn.innerHTML = '<i class="fas fa-play"></i> Start Scan';
+        });
+    }
+
+    function renderFullGraph(result) {
+        cy.elements().remove();
+        currentHosts.clear();
+        currentEdges.clear();
+        allRawEdges = [];
+        tempEndpoints = {};
+
+        result.nodes.forEach(n => addNode(n.id));
+
+        setTimeout(() => {
+            result.edges.forEach(e => {
+                addEdge(e.source, e.target, e.method, e.details);
+            });
+            for (const [host, eps] of Object.entries(result.endpoints)) {
+                const normHost = normalizeHost(host);
+                tempEndpoints[normHost] = new Set(eps);
+            }
+            updateStats();
+            setTimeout(() => {
+                if (currentLayout) currentLayout.stop();
+                if (cy.elements().length === 0) return;
+                currentLayout = cy.layout({ name: 'cose-bilkent', idealEdgeLength: 120, nodeRepulsion: 12000, animate: true, animationDuration: 500, fit: true });
+                currentLayout.run();
+            }, 200);
+        }, 100);
+    }
+
+    scanBtn.onclick = startScan;
+</script>
+</body>
+</html>
