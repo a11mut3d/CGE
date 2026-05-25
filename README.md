@@ -68,4 +68,5 @@ python cli.py example.com --cookies "session=abc123; user=test"
 }
 ```
 
-# mute ecosystem
+---
+**[Mute Ecosystem](https://a11mut3d.github.io/MuteEcosystem/)** 
