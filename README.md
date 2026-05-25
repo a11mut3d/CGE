@@ -1,4 +1,5 @@
 # CGE
+<img width="1280" height="853" alt="image" src="https://github.com/user-attachments/assets/db4aaaa9-d992-42a0-abc2-0247afd64cb5" />
 ## Overview
 CGE is a passive reconnaissance and graph mapping tool that discovers subdomains, endpoints, and relationships between hosts through web crawling and analysis. It visualizes the results as an interactive graph and supports storing scans in Neo4j.
 ## Features
