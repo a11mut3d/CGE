@@ -1,0 +1,11 @@
+Flask
+Flask-SocketIO
+python-socketio
+requests
+beautifulsoup4
+lxml
+neobolt
+neotime
+neo4j
+urllib3
+dnspython
